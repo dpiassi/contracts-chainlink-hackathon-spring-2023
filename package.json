@@ -3,5 +3,8 @@
     "@nomicfoundation/hardhat-toolbox": "^2.0.2",
     "dotenv": "^16.1.3",
     "hardhat": "^2.14.1"
+  },
+  "dependencies": {
+    "@chainlink/contracts": "^0.6.1"
   }
 }

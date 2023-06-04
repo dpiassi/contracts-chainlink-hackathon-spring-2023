@@ -17,7 +17,7 @@ const SEPOLIA_PRIVATE_KEY = process.env.SEPOLIA_PRIVATE_KEY!;
 const config: HardhatUserConfig = {
   solidity: "0.8.18",
   mocha: {
-    timeout: 100000000,
+    timeout: 200000, // 200 seconds max for running tests
   },
   networks: {
     sepolia: {
