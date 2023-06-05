@@ -19,7 +19,7 @@ import "./Order.sol";
  * @author Daniel Piassi
  * @notice A contract to store a delivery
  */
-contract Delivery is FunctionsClient, ConfirmedOwner {
+contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
     using Functions for Functions.Request;
 
     /// @dev State variables for Chainlink Functions framework
@@ -51,7 +51,6 @@ contract Delivery is FunctionsClient, ConfirmedOwner {
     event OrderCreated(address indexed orderAddress);
     event OrderDelivered(address indexed orderAddress);
     event OrderReceiptConfirmed(address indexed orderAddress);
-    event RequestFulfilled(bytes32 indexed requestId, int256 rawData);
 
     /// @dev Modifiers
     modifier onlySender(address orderAddress) {
