@@ -30,6 +30,7 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     address[] public orderAddresses;
     uint256 public ordersCount;
     address public lastOrder;
+    int32 public deliveredDistanceThreshold = 400; // in meters
 
     /// @dev Chainlink External API Calls
     bytes32 private jobId;
@@ -81,11 +82,11 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     /**
      * @notice Create a new Order object
      * @param _receiver The address of the receiver
-     * @param _srcLat The latitude of the source location
-     * @param _srcLng The longitude of the source location
-     * @param _dstLat The latitude of the destination location
-     * @param _dstLng The longitude of the destination location
-     * @param _expectedTimeOfArrival The expected time of arrival
+     * @param _srcLat The latitude of the source location in microdegrees
+     * @param _srcLng The longitude of the source location in microdegrees
+     * @param _dstLat The latitude of the destination location in microdegrees
+     * @param _dstLng The longitude of the destination location in microdegrees
+     * @param _expectedTimeOfArrival The expected time of arrival (unix timestamp)
      * @return orderAddress The address of the created order
      */
     function createOrder(
@@ -110,6 +111,16 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         orderAddresses.push(lastOrder);
         ordersCount++;
         return lastOrder;
+    }
+
+    /**
+     * @notice We may change the distance threshold to consider the order as delivered
+     * @param _deliveredDistanceThreshold The distance threshold to consider the order as delivered
+     */
+    function setDeliveredDistanceThreshold(
+        int32 _deliveredDistanceThreshold
+    ) public onlyOwner {
+        deliveredDistanceThreshold = _deliveredDistanceThreshold;
     }
 
     /**
@@ -213,6 +224,11 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         order.confirmReceipt();
     }
 
+    /// @dev PRIVATE CONSTANTS
+    int32 private constant EARTH_CIRCUMFERENCE = 40075000; // in meters
+    int32 private constant LATITUDE_RANGE = 180000000; // in microdegrees
+    int32 private constant LONGITUDE_RANGE = 360000000; // in microdegrees
+
     /// @dev PRIVATE HELPERS
     function assertIsOrder(address _orderAddress) private view {
         require(
@@ -221,20 +237,43 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         );
     }
 
-    function convertLatLngToInt256(
-        int32 _lat,
-        int32 _lng
-    ) private pure returns (int256) {
-        int256 lat = int256(_lat) << 32;
-        int256 lng = int256(_lng);
-        return lat | lng;
+    function checkLatLngThreshold(
+        address _orderAddress,
+        int32 _curLat,
+        int32 _curLng
+    ) private view returns (bool isDelivered) {
+        assertIsOrder(_orderAddress);
+        Order order = orders[_orderAddress];
+        (int32 dstLat, int32 dstLng) = order.destinationLocation();
+
+        // Verify latitude:
+        int32 latDiff = _curLat - dstLat;
+        if (latDiff < 0) {
+            latDiff = -latDiff;
+        }
+        int32 latDistance = (latDiff * EARTH_CIRCUMFERENCE) / LATITUDE_RANGE;
+        if (latDistance > deliveredDistanceThreshold) {
+            return false;
+        }
+
+        // Verify longitude:
+        int32 lngDiff = _curLng - dstLng;
+        if (lngDiff < 0) {
+            lngDiff = -lngDiff;
+        }
+        int32 lngDistance = (lngDiff * EARTH_CIRCUMFERENCE) / LONGITUDE_RANGE;
+        if (lngDistance > deliveredDistanceThreshold) {
+            return false;
+        }
+
+        return true;
     }
 
     function convertInt256ToLatLng(
         int256 _latLng
     ) private pure returns (int32, int32) {
         int32 lat = int32(_latLng >> 32);
-        int32 lng = int32(_latLng);
+        int32 lng = int32(_latLng) - LONGITUDE_RANGE;
         return (lat, lng);
     }
 }
