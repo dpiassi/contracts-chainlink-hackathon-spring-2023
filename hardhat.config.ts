@@ -12,17 +12,55 @@ const INFURA_API_KEY = process.env.INFURA_API_KEY!;
 // To export your private key from Metamask, open Metamask and
 // go to Account Details > Export Private Key
 // Beware: NEVER put real Ether into testing accounts
-const SEPOLIA_PRIVATE_KEY = process.env.SEPOLIA_PRIVATE_KEY!;
+const PRIVATE_KEY = process.env.PRIVATE_KEY!;
+
+const SOLC_SETTINGS = {
+  optimizer: {
+    enabled: true,
+    runs: 1_000,
+  },
+}
 
 const config: HardhatUserConfig = {
-  solidity: "0.8.18",
+  defaultNetwork: "polygonMumbai",
+  solidity: {
+    compilers: [
+      {
+        version: "0.8.7",
+        settings: SOLC_SETTINGS,
+      },
+      {
+        version: "0.7.0",
+        settings: SOLC_SETTINGS,
+      },
+      {
+        version: "0.6.6",
+        settings: SOLC_SETTINGS,
+      },
+      {
+        version: "0.4.24",
+        settings: SOLC_SETTINGS,
+      },
+    ],
+  },
   mocha: {
     timeout: 200000, // 200 seconds max for running tests
   },
   networks: {
-    sepolia: {
+    hardhat: {
+      // // If you want to do some forking, uncomment this
+      // forking: {
+      //   url: MAINNET_RPC_URL
+      // }
+    },
+    localhost: {},
+    polygonMumbai: {
+      url: `https://polygon-mumbai.infura.io/v3/${INFURA_API_KEY}`,
+      accounts: [PRIVATE_KEY],
+    },
+    ethereumSepolia: {
       url: `https://sepolia.infura.io/v3/${INFURA_API_KEY}`,
-      accounts: [SEPOLIA_PRIVATE_KEY]
+      accounts: [PRIVATE_KEY]
     }
   }
 };

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.9;
+pragma solidity ^0.8.7;
 
 contract LatLngConverter {
     int32 private constant LONGITUDE_RANGE = 360000000; // in microdegrees
