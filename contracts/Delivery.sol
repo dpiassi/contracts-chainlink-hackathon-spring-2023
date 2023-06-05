@@ -18,12 +18,6 @@ import "./Order.sol";
  */
 contract Delivery is ChainlinkClient, ConfirmedOwner {
     using Chainlink for Chainlink.Request;
-    /// @dev Enum to store the callback flag
-    enum CallbackFlag {
-        NONE,
-        DELIVER_ORDER,
-        CONFIRM_ORDER_RECEIPT
-    }
 
     /// @dev State variables to store the last callback info
     struct OrderState {
@@ -33,7 +27,9 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     }
 
     /// @dev State variables
-    mapping(address => Order) public orders;
+    mapping(address => Order) private orders;
+    mapping(address => address[]) private ordersBySender;
+    mapping(address => address[]) private ordersByReceiver;
     address[] public orderAddresses;
     uint256 public ordersCount;
     address public lastOrder;
@@ -53,7 +49,6 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     event RequestFulfilled(bytes32 indexed requestId, int256 rawData);
 
     /// @dev State variables to store the last callback info
-    CallbackFlag private callbackFlag;
     address private lastCallerAddress;
     address private lastOrderAddress;
 
@@ -85,7 +80,6 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         setChainlinkOracle(0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD);
         jobId = "fcf4140d696d44b687012232948bdd5d"; // int256
         fee = (1 * LINK_DIVISIBILITY) / 10; // 0,1 * 10**18 (Varies by network and job)
-        callbackFlag = CallbackFlag.NONE;
     }
 
     /**
@@ -119,8 +113,22 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         emit OrderCreated(lastOrder);
         orders[lastOrder] = order;
         orderAddresses.push(lastOrder);
+        ordersBySender[msg.sender].push(lastOrder);
+        ordersByReceiver[_receiver].push(lastOrder);
         ordersCount++;
         return lastOrder;
+    }
+
+    function getSenderOrders(
+        address _sender
+    ) public view returns (address[] memory) {
+        return ordersBySender[_sender];
+    }
+
+    function getReceiverOrders(
+        address _receiver
+    ) public view returns (address[] memory) {
+        return ordersByReceiver[_receiver];
     }
 
     /**
@@ -141,7 +149,6 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     function deliverOrder(
         address _orderAddress
     ) public onlySender(_orderAddress) {
-        callbackFlag = CallbackFlag.DELIVER_ORDER;
         lastCallerAddress = msg.sender;
         lastOrderAddress = _orderAddress;
         requestCurrentLocation();
@@ -155,10 +162,10 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     function confirmOrderReceipt(
         address _orderAddress
     ) public onlyReceiver(_orderAddress) {
-        callbackFlag = CallbackFlag.CONFIRM_ORDER_RECEIPT;
-        lastCallerAddress = msg.sender;
-        lastOrderAddress = _orderAddress;
-        requestCurrentLocation();
+        assertIsOrder(_orderAddress);
+        Order order = orders[_orderAddress];
+        order.confirmReceipt();
+        emit OrderReceiptConfirmed(_orderAddress);
     }
 
     /**
@@ -200,10 +207,8 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
             timestamp: block.timestamp
         });
 
-        if (callbackFlag == CallbackFlag.DELIVER_ORDER) {
-            deliverOrderCallback();
-        } else if (callbackFlag == CallbackFlag.CONFIRM_ORDER_RECEIPT) {
-            confirmOrderReceiptCallback();
+        if (checkLatLngThreshold(lastOrderAddress)) {
+            emit OrderDelivered(lastOrderAddress);
         }
     }
 
@@ -216,22 +221,6 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
             link.transfer(msg.sender, link.balanceOf(address(this))),
             "Unable to transfer"
         );
-    }
-
-    /// @dev PRIVATE CALLBACKS
-    function deliverOrderCallback() private {
-        callbackFlag = CallbackFlag.NONE;
-        if (checkLatLngThreshold(lastOrderAddress)) {
-            emit OrderDelivered(lastOrderAddress);
-        }
-    }
-
-    function confirmOrderReceiptCallback() private {
-        callbackFlag = CallbackFlag.NONE;
-        assertIsOrder(lastOrderAddress);
-        Order order = orders[lastOrderAddress];
-        order.confirmReceipt();
-        emit OrderReceiptConfirmed(lastOrderAddress);
     }
 
     /// @dev PRIVATE CONSTANTS
