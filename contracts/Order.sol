@@ -21,7 +21,7 @@ contract Order {
     address public receiver;
     LatLng public sourceLocation;
     LatLng public destinationLocation;
-    uint32 public expectedTimeOfArrival;
+    uint256 public expectedTimeOfArrival;
     bool public delivered;
     bool public confirmed;
 
@@ -54,7 +54,7 @@ contract Order {
         int32 _srcLng,
         int32 _dstLat,
         int32 _dstLng,
-        uint32 _expectedTimeOfArrival
+        uint256 _expectedTimeOfArrival
     ) {
         deliveryContract = msg.sender;
         sender = _sender;

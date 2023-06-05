@@ -25,6 +25,13 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         CONFIRM_ORDER_RECEIPT
     }
 
+    /// @dev State variables to store the last callback info
+    struct OrderState {
+        int32 curLat;
+        int32 curLng;
+        uint256 timestamp;
+    }
+
     /// @dev State variables
     mapping(address => Order) public orders;
     address[] public orderAddresses;
@@ -37,10 +44,12 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     uint256 private fee;
 
     /// @dev Multiple params returned in a single oracle response
-    int32 public lastLatitude;
-    int32 public lastLongitude;
+    mapping(address => OrderState) public ordersState;
 
     /// @dev Events
+    event OrderCreated(address indexed orderAddress);
+    event OrderDelivered(address indexed orderAddress);
+    event OrderReceiptConfirmed(address indexed orderAddress);
     event RequestFulfilled(bytes32 indexed requestId, int256 rawData);
 
     /// @dev State variables to store the last callback info
@@ -95,7 +104,7 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         int32 _srcLng,
         int32 _dstLat,
         int32 _dstLng,
-        uint32 _expectedTimeOfArrival
+        uint256 _expectedTimeOfArrival
     ) public returns (address orderAddress) {
         Order order = new Order(
             msg.sender,
@@ -107,6 +116,7 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
             _expectedTimeOfArrival
         );
         lastOrder = address(order);
+        emit OrderCreated(lastOrder);
         orders[lastOrder] = order;
         orderAddresses.push(lastOrder);
         ordersCount++;
@@ -164,17 +174,12 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         );
 
         // Set the URL to perform the GET request on
-        req.add(
-            "get",
-            "https://min-api.cryptocompare.com/data/pricemultifull?fsyms=ETH&tsyms=USD"
-        );
+        req.add("get", "https://ship-track.fly.dev/locations/last");
 
         // Set the path to find the desired data in the API response:
-        req.add("path", "RAW,ETH,USD,VOLUME24HOUR"); // Chainlink nodes 1.0.0 and later support this format
+        req.add("path", "location"); // Chainlink nodes 1.0.0 and later support this format
 
-        // Multiply the result by 1000000000000000000 to remove decimals
-        int256 timesAmount = 10 ** 18;
-        req.addInt("times", timesAmount);
+        req.addInt("times", 1);
 
         // Sends the request
         return sendChainlinkRequest(req, fee);
@@ -188,7 +193,12 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         int256 _rawData
     ) public recordChainlinkFulfillment(_requestId) {
         emit RequestFulfilled(_requestId, _rawData);
-        (lastLatitude, lastLongitude) = convertInt256ToLatLng(_rawData);
+        (int32 curLat, int32 curLng) = convertInt256ToLatLng(_rawData);
+        ordersState[lastOrder] = OrderState({
+            curLat: curLat,
+            curLng: curLng,
+            timestamp: block.timestamp
+        });
 
         if (callbackFlag == CallbackFlag.DELIVER_ORDER) {
             deliverOrderCallback();
@@ -211,10 +221,9 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     /// @dev PRIVATE CALLBACKS
     function deliverOrderCallback() private {
         callbackFlag = CallbackFlag.NONE;
-        assertIsOrder(lastOrderAddress);
-        Order order = orders[lastOrderAddress];
-        // TODO verify if the order is in the expected location
-        order.deliver();
+        if (checkLatLngThreshold(lastOrderAddress)) {
+            emit OrderDelivered(lastOrderAddress);
+        }
     }
 
     function confirmOrderReceiptCallback() private {
@@ -222,6 +231,7 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
         assertIsOrder(lastOrderAddress);
         Order order = orders[lastOrderAddress];
         order.confirmReceipt();
+        emit OrderReceiptConfirmed(lastOrderAddress);
     }
 
     /// @dev PRIVATE CONSTANTS
@@ -238,13 +248,13 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
     }
 
     function checkLatLngThreshold(
-        address _orderAddress,
-        int32 _curLat,
-        int32 _curLng
-    ) private view returns (bool isDelivered) {
+        address _orderAddress
+    ) private returns (bool isDelivered) {
         assertIsOrder(_orderAddress);
         Order order = orders[_orderAddress];
         (int32 dstLat, int32 dstLng) = order.destinationLocation();
+        int32 _curLat = ordersState[_orderAddress].curLat;
+        int32 _curLng = ordersState[_orderAddress].curLng;
 
         // Verify latitude:
         int32 latDiff = _curLat - dstLat;
@@ -266,6 +276,7 @@ contract Delivery is ChainlinkClient, ConfirmedOwner {
             return false;
         }
 
+        order.deliver();
         return true;
     }
 
