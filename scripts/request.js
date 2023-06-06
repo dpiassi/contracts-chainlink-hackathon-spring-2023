@@ -14,7 +14,7 @@ async function main() {
   const signer = new ethers.Wallet(signerPrivateKey, provider);
 
   // Consumer contract
-  const consumerAddress = "0xc3dbe312060D391c14b080381aEbcda2d2F1472E";
+  const consumerAddress = "0x5650A65Cfd44c67cD6f4c24E0271f7f51bAf3035";
   const consumerAbiPath =
     "./artifacts/contracts/DeliveryFunctionsConsumer.sol/DeliveryFunctionsConsumer.json";
 
@@ -33,7 +33,7 @@ async function main() {
 
   // Chainlink Functions request config
   // Chainlink Functions subscription ID
-  const subscriptionId = 1614;
+  const subscriptionId = 1622;
   // Gas limit for the Chainlink Functions request
   const requestGas = 5500000;
 

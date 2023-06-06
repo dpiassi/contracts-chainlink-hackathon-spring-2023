@@ -1,6 +1,7 @@
+import * as envEnc from "@chainlink/env-enc";
 import "@nomicfoundation/hardhat-toolbox";
-import "dotenv/config"; // Don't forget to import dotenv
 import { HardhatUserConfig } from "hardhat/config";
+envEnc.config();
 
 // Go to https://infura.io, sign up, create a new API key
 // in its dashboard, and replace "KEY" with it
