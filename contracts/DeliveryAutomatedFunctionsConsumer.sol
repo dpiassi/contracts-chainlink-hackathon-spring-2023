@@ -20,7 +20,7 @@ import "./Order.sol";
  * @author Daniel Piassi
  * @notice A contract to store a delivery
  */
-contract DeliveryFunctionsConsumerAutomated is
+contract DeliveryAutomatedFunctionsConsumer is
     FunctionsClient,
     ConfirmedOwner,
     AutomationCompatibleInterface
