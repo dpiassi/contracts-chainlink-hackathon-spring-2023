@@ -37,8 +37,9 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   int32 public deliveredDistanceThreshold = 400; // in meters
 
   /// @dev Chainlink External API Calls
-  bytes32 private jobId;
-  uint256 private fee;
+  address private immutable oracle;
+  bytes32 private immutable jobId;
+  uint256 private immutable fee;
 
   /// @dev Multiple params returned in a single oracle response
   mapping(address => OrderState) public ordersState;
@@ -69,19 +70,28 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   }
 
   /**
-   * @notice Initialize the link token and target oracle
-   * @dev The oracle address must be an Operator contract for singleword response
-   *
-   * Sepolia Testnet details:
-   * Oracle: 0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD (Chainlink DevRel)
-   * jobId: fcf4140d696d44b687012232948bdd5d
-   */
-  constructor() ConfirmedOwner(msg.sender) {
-    setChainlinkToken(0x779877A7B0D9E8603169DdbD7836e478b4624789);
-    setChainlinkOracle(0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD);
-    jobId = "fcf4140d696d44b687012232948bdd5d"; // int256
-    fee = (1 * LINK_DIVISIBILITY) / 10; // 0,1 * 10**18 (Varies by network and job)
-  }
+     * @notice Executes once when a contract is created to initialize state variables
+     *
+     * @param _oracle - address of the specific Chainlink node that a contract makes an API call from
+     * @param _jobId - specific job for :_oracle: to run; each job is unique and returns different types of data
+     * @param _fee - node operator price per API call / data request
+     * @param _link - LINK token address on the corresponding network
+     *
+     * Network: Sepolia
+     * Oracle: 0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD
+     * Job ID: ca98366cc7314957b8c012c72f05aeeb
+     * Fee: 0.1 LINK
+     */
+    constructor(address _oracle, bytes32 _jobId, uint256 _fee, address _link) ConfirmedOwner(msg.sender) {
+        if (_link == address(0)) {
+            setPublicChainlinkToken();
+        } else {
+            setChainlinkToken(_link);
+        }
+        oracle = _oracle;
+        jobId = _jobId;
+        fee = _fee;
+    }
 
   /**
    * @notice Create a new Order object
@@ -160,13 +170,13 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
     Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
 
     // Set the URL to perform the GET request on
-    req.add("get", "https://ship-track.fly.dev/locations/last");
+    req.add("get", string(abi.encodePacked("https://ship-track.fly.dev/locations/last/", lastOrderAddress)));
 
     // Set the path to find the desired data in the API response:
     req.add("path", "location");
 
     // Adjust the API Response to an int256:
-    req.addInt("times", 1); // Useful when it's a floating point number
+    req.addInt("times", 1); // Useful when the result is a floating point number
 
     // Sends the request
     return sendChainlinkRequest(req, fee);

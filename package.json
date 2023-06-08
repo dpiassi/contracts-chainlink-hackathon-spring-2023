@@ -8,6 +8,7 @@
     "compile": "hardhat compile",
     "test": "npm run test:unit",
     "test:unit": "hardhat test test/unit/*.spec.js",
+    "deploy": "hardhat run scripts/deployment/main.js",
     "functions-simulate-javascript": "node scripts/simulateFunctionsJavaScript.js",
     "functions-gen-keys": "node scripts/generateKeypair.js",
     "lint": "npm run lint:contracts && npm run format:check",
