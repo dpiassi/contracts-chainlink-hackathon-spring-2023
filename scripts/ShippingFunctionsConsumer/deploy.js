@@ -5,7 +5,7 @@ async function main() {
   const oracleAddress = "0xeA6721aC65BCeD841B8ec3fc5fEdeA6141a0aDE4";
 
   // Set your contract name.
-  const contractName = "DeliveryFunctionsConsumer";
+  const contractName = "ShippingFunctionsConsumer";
 
   const [deployer] = await ethers.getSigners();
 

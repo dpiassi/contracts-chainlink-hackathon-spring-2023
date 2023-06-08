@@ -26,7 +26,7 @@ task("functions-perform-upkeep", "Manually call performUpkeep in an Automation c
         taskArgs.data ? ` with data ${performData}` : ""
       }`
     )
-    const autoClientContractFactory = await ethers.getContractFactory("DeliveryAutomatedFunctionsConsumer")
+    const autoClientContractFactory = await ethers.getContractFactory("ShippingAutomatedFunctionsConsumer")
     const autoClientContract = await autoClientContractFactory.attach(taskArgs.contract)
 
     const checkUpkeep = await autoClientContract.performUpkeep(performData, overrides)

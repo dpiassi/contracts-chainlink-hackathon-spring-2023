@@ -21,7 +21,7 @@ task(
     }
 
     console.log(`Reading data from Functions client contract ${taskArgs.contract} on network ${network.name}`)
-    const clientContractFactory = await ethers.getContractFactory("DeliveryFunctionsConsumer")
+    const clientContractFactory = await ethers.getContractFactory("ShippingFunctionsConsumer")
     const clientContract = await clientContractFactory.attach(taskArgs.contract)
 
     let latestError = await clientContract.latestError()

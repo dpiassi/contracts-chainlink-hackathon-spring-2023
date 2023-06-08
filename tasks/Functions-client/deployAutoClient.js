@@ -41,7 +41,7 @@ task("functions-deploy-auto-client", "Deploys the AutomatedFunctionsConsumer con
     console.log("\n__Compiling Contracts__")
     await run("compile")
 
-    const autoClientContractFactory = await ethers.getContractFactory("DeliveryAutomatedFunctionsConsumer")
+    const autoClientContractFactory = await ethers.getContractFactory("ShippingAutomatedFunctionsConsumer")
     const autoClientContract = await autoClientContractFactory.deploy(
       networks[network.name]["functionsOracleProxy"],
       taskArgs.subid,
