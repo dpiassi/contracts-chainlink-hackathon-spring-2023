@@ -4,33 +4,23 @@ pragma solidity ^0.8.7;
 // Uncomment this line to use console.log
 import "hardhat/console.sol";
 
-// Import Chainlink Functions framework dependencies
-import {Functions, FunctionsClient} from "./dev/functions/FunctionsClient.sol";
-// import "@chainlink/contracts/src/v0.8/dev/functions/FunctionsClient.sol"; // Once published
-
 // Import chainlink/contracts framework dependencies
+import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
 import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/ConfirmedOwner.sol";
 
 // Import local dependencies
 import "./Order.sol";
 
 /**
- * @title Delivery
+ * @title Shipping
  * @author Daniel Piassi
- * @notice A contract to store a delivery
+ * @notice This contract deals with the shipping process of delivering any kind of package in the real world. It gathers location data from IoT devices and stores it in the blockchain.
+ * @dev Implementation using Chainlink External API Calls
  */
-contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
-  using Functions for Functions.Request;
+contract Shipping is ChainlinkClient, ConfirmedOwner {
+  using Chainlink for Chainlink.Request;
 
-  /// @dev State variables for Chainlink Functions framework
-  bytes32 public latestRequestId;
-  bytes public latestResponse;
-  bytes public latestError;
-
-  /// @dev Event for Chainlink Functions framework
-  event OCRResponse(bytes32 indexed requestId, bytes result, bytes err);
-
-  /// @dev State variables to store the last callback info
+  /// @dev Struct to store the last callback info
   struct OrderState {
     int32 curLat;
     int32 curLng;
@@ -38,13 +28,17 @@ contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
   }
 
   /// @dev State variables
-  mapping(address => Order) public orders;
+  mapping(address => Order) private orders;
   mapping(address => address[]) private ordersBySender;
   mapping(address => address[]) private ordersByReceiver;
   address[] public orderAddresses;
   uint256 public ordersCount;
   address public lastOrder;
   int32 public deliveredDistanceThreshold = 400; // in meters
+
+  /// @dev Chainlink External API Calls
+  bytes32 private jobId;
+  uint256 private fee;
 
   /// @dev Multiple params returned in a single oracle response
   mapping(address => OrderState) public ordersState;
@@ -53,6 +47,11 @@ contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
   event OrderCreated(address indexed orderAddress);
   event OrderDelivered(address indexed orderAddress);
   event OrderReceiptConfirmed(address indexed orderAddress);
+  event RequestFulfilled(bytes32 indexed requestId, int256 rawData);
+
+  /// @dev State variables to store the last callback info
+  address private lastCallerAddress;
+  address private lastOrderAddress;
 
   /// @dev Modifiers
   modifier onlySender(address orderAddress) {
@@ -70,11 +69,19 @@ contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
   }
 
   /**
-   * @notice Executes once when a contract is created to initialize state variables
+   * @notice Initialize the link token and target oracle
+   * @dev The oracle address must be an Operator contract for singleword response
    *
-   * @param oracle - The FunctionsOracle contract
+   * Sepolia Testnet details:
+   * Oracle: 0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD (Chainlink DevRel)
+   * jobId: fcf4140d696d44b687012232948bdd5d
    */
-  constructor(address oracle) FunctionsClient(oracle) ConfirmedOwner(msg.sender) {}
+  constructor() ConfirmedOwner(msg.sender) {
+    setChainlinkToken(0x779877A7B0D9E8603169DdbD7836e478b4624789);
+    setChainlinkOracle(0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD);
+    jobId = "fcf4140d696d44b687012232948bdd5d"; // int256
+    fee = (1 * LINK_DIVISIBILITY) / 10; // 0,1 * 10**18 (Varies by network and job)
+  }
 
   /**
    * @notice Create a new Order object
@@ -126,11 +133,11 @@ contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
    * @dev It's called automatically by the IoT device automation
    * @param _orderAddress The address of the order
    */
-  //   function deliverOrder(address _orderAddress) public onlySender(_orderAddress) {
-  //     lastCallerAddress = msg.sender;
-  //     lastOrderAddress = _orderAddress;
-  //     requestCurrentLocation();
-  //   }
+  function deliverOrder(address _orderAddress) public onlySender(_orderAddress) {
+    lastCallerAddress = msg.sender;
+    lastOrderAddress = _orderAddress;
+    requestCurrentLocation();
+  }
 
   /**
    * @notice Attempt to mark the order as confirmed
@@ -145,64 +152,45 @@ contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
   }
 
   /**
-   * @notice Send a simple request
-   *
-   * @param source JavaScript source code
-   * @param secrets Encrypted secrets payload
-   * @param args List of arguments accessible from within the source code
-   * @param subscriptionId Funtions billing subscription ID
-   * @param gasLimit Maximum amount of gas used to call the client contract's `handleOracleFulfillment` function
-   * @return Functions request ID
+   * @notice Request the current location from the oracle
+   * @dev The oracle will return the latitude and longitude in a single int256
+   * @return requestId The id of the request
    */
-  function executeRequest(
-    string calldata source,
-    bytes calldata secrets,
-    string[] calldata args,
-    uint64 subscriptionId,
-    uint32 gasLimit
-  ) public onlyOwner returns (bytes32) {
-    Functions.Request memory req;
-    req.initializeRequest(Functions.Location.Inline, Functions.CodeLanguage.JavaScript, source);
-    if (secrets.length > 0) req.addRemoteSecrets(secrets);
-    if (args.length > 0) req.addArgs(args);
+  function requestCurrentLocation() public returns (bytes32 requestId) {
+    Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
 
-    bytes32 assignedReqID = sendRequest(req, subscriptionId, gasLimit);
-    latestRequestId = assignedReqID;
-    return assignedReqID;
+    // Set the URL to perform the GET request on
+    req.add("get", "https://ship-track.fly.dev/locations/last");
+
+    // Set the path to find the desired data in the API response:
+    req.add("path", "location");
+
+    // Adjust the API Response to an int256:
+    req.addInt("times", 1); // Useful when it's a floating point number
+
+    // Sends the request
+    return sendChainlinkRequest(req, fee);
   }
 
   /**
-   * @notice Callback that is invoked once the DON has resolved the request or hit an error
-   *
-   * @param requestId The request ID, returned by sendRequest()
-   * @param response Aggregated response from the user code
-   * @param err Aggregated error from the user code or from the execution pipeline
-   * Either response or error parameter will be set, but never both
+   * @notice Callback function called by the oracle
    */
-  function fulfillRequest(bytes32 requestId, bytes memory response, bytes memory err) internal override {
-    latestResponse = response;
-    latestError = err;
-    emit OCRResponse(requestId, response, err);
-  }
+  function fulfill(bytes32 _requestId, int256 _rawData) public recordChainlinkFulfillment(_requestId) {
+    emit RequestFulfilled(_requestId, _rawData);
+    (int32 curLat, int32 curLng) = convertInt256ToLatLng(_rawData);
+    ordersState[lastOrder] = OrderState({curLat: curLat, curLng: curLng, timestamp: block.timestamp});
 
-  /**
-   * @notice Allows the Functions oracle address to be updated
-   *
-   * @param oracle New oracle address
-   */
-  function updateOracleAddress(address oracle) public onlyOwner {
-    setOracle(oracle);
-  }
-
-  function addSimulatedRequestId(address oracleAddress, bytes32 requestId) public onlyOwner {
-    addExternalRequest(oracleAddress, requestId);
-  }
-
-  /// @dev PRIVATE CALLBACKS
-  function tryDeliverOrder(address _orderAddress) private {
-    if (checkLatLngThreshold(_orderAddress)) {
-      emit OrderDelivered(_orderAddress);
+    if (checkLatLngThreshold(lastOrderAddress)) {
+      emit OrderDelivered(lastOrderAddress);
     }
+  }
+
+  /**
+   * @notice Allow withdraw of Link tokens from the contract
+   */
+  function withdrawLink() public onlyOwner {
+    LinkTokenInterface link = LinkTokenInterface(chainlinkTokenAddress());
+    require(link.transfer(msg.sender, link.balanceOf(address(this))), "Unable to transfer");
   }
 
   /// @dev PRIVATE CONSTANTS
@@ -210,7 +198,7 @@ contract DeliveryFunctionsConsumer is FunctionsClient, ConfirmedOwner {
   int32 private constant LATITUDE_RANGE = 180000000; // in microdegrees
   int32 private constant LONGITUDE_RANGE = 360000000; // in microdegrees
 
-  /// @dev PRIVATE HELPERS
+  /// @dev PRIVATE FUNCTIONS
   function assertIsOrder(address _orderAddress) private view {
     require(address(orders[_orderAddress]) != address(0), "The order doesn't exist");
   }

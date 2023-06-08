@@ -16,11 +16,12 @@ import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/ConfirmedOwner.sol";
 import "./Order.sol";
 
 /**
- * @title Delivery
+ * @title ShippingAutomatedFunctionsConsumer
  * @author Daniel Piassi
- * @notice A contract to store a delivery
+ * @notice This contract deals with the shipping process of delivering any kind of package in the real world. It gathers location data from IoT devices and stores it in the blockchain.
+ * @dev Implementation using Chainlink Functions and Chainlink Automation frameworks
  */
-contract DeliveryAutomatedFunctionsConsumer is FunctionsClient, ConfirmedOwner, AutomationCompatibleInterface {
+contract ShippingAutomatedFunctionsConsumer is FunctionsClient, ConfirmedOwner, AutomationCompatibleInterface {
   using Functions for Functions.Request;
 
   /// @dev State variables for Chainlink Functions framework
@@ -275,7 +276,7 @@ contract DeliveryAutomatedFunctionsConsumer is FunctionsClient, ConfirmedOwner, 
   int32 private constant LATITUDE_RANGE = 180000000; // in microdegrees
   int32 private constant LONGITUDE_RANGE = 360000000; // in microdegrees
 
-  /// @dev PRIVATE HELPERS
+  /// @dev PRIVATE FUNCTIONS
   function assertIsOrder(address _orderAddress) private view {
     require(address(orders[_orderAddress]) != address(0), "The order doesn't exist");
   }

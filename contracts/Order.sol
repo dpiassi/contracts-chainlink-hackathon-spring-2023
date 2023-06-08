@@ -7,7 +7,7 @@ import "hardhat/console.sol";
 /**
  * @title Order
  * @author Daniel Piassi
- * @notice A contract to store a delivery order
+ * @notice A contract to store shipping order state
  */
 contract Order {
   /// @notice A struct to store latitude and longitude

@@ -1,43 +1,58 @@
-// This example shows how to make a call to an open API (no authentication required)
-// to retrieve asset price from a symbol(e.g., ETH) to another symbol (e.g., USD)
-
-// CryptoCompare API https://min-api.cryptocompare.com/documentation?key=Price&cat=multipleSymbolsFullPriceEndpoint
-
-// Refer to https://github.com/smartcontractkit/functions-hardhat-starter-kit#javascript-code
-
 // Arguments can be provided when a request is initated on-chain and used in the request source code as shown below
-const fromSymbol = args[0]
-const toSymbol = args[1]
+const ordersData = args;
+
+console.log(ordersData);
 
 // make HTTP request
-const url = `https://min-api.cryptocompare.com/data/pricemultifull`
-console.log(`HTTP GET Request to ${url}?fsyms=${fromSymbol}&tsyms=${toSymbol}`)
+const getUrl = "https://ship-track.fly.dev/locations2/last"
+console.log(`HTTP GET Request to ${getUrl}`)
 
 // construct the HTTP Request object. See: https://github.com/smartcontractkit/functions-hardhat-starter-kit#javascript-code
 // params used for URL query parameters
-// Example of query: https://min-api.cryptocompare.com/data/pricemultifull?fsyms=ETH&tsyms=USD
-const cryptoCompareRequest = Functions.makeHttpRequest({
-  url: url,
-  params: {
-    fsyms: fromSymbol,
-    tsyms: toSymbol,
-  },
+const getLastLocationsRequest = Functions.makeHttpRequest({
+  url: getUrl,
 })
 
 // Execute the API request (Promise)
-const cryptoCompareResponse = await cryptoCompareRequest
-if (cryptoCompareResponse.error) {
-  console.error(cryptoCompareResponse.error)
+const getLastLocationsResponse = await getLastLocationsRequest
+if (getLastLocationsResponse.error) {
+  console.error(getLastLocationsResponse.error)
   throw Error("Request failed")
 }
 
-const data = cryptoCompareResponse["data"]
+const data = getLastLocationsResponse["data"]
 if (data.Response === "Error") {
   console.error(data.Message)
   throw Error(`Functional error. Read message: ${data.Message}`)
 }
 
-// extract the price
+// const DELIVERED_DISTANCE_THRESHOLD = 1000; // in meters
+// const EARTH_CIRCUMFERENCE = 40075000; // in meters
+// const LATITUDE_RANGE = 180000000; // in microdegrees
+const LONGITUDE_RANGE = 360000000; // in microdegrees
+
+// function checkLatLngThreshold(curLat, curLng, dstLat, dstLng) {
+//   let latDiff = Math.abs(curLat - location.lat);
+//   let latDistance = (latDiff / LATITUDE_RANGE) * EARTH_CIRCUMFERENCE;
+//   if (latDistance > DELIVERED_DISTANCE_THRESHOLD) return false;
+//   let lngDiff = Math.abs(curLng - location.lng);
+//   let lngDistance = (lngDiff / LONGITUDE_RANGE) * EARTH_CIRCUMFERENCE;
+//   if (lngDistance > DELIVERED_DISTANCE_THRESHOLD) return false;
+//   return true;
+// }
+
+
+for (let i = 0; i < data.length; i++) {
+  const snapshot = data[i];
+  // Combine latitude (int32), longitude (int32) and orderId (hex string) into a single int256:
+
+
+
+  // if (checkLatLngThreshold(snapshot.latitude, snapshot.longitude)) {
+  //   return Functions.encodeUint256(snapshot.timestamp);
+  // }
+}
+
 const price = data["RAW"][fromSymbol][toSymbol]["PRICE"]
 console.log(`${fromSymbol} price is: ${price.toFixed(2)} ${toSymbol}`)
 
