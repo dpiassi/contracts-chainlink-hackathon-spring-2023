@@ -33,13 +33,13 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   mapping(address => address[]) private ordersByReceiver;
   address[] public orderAddresses;
   uint256 public ordersCount;
-  address public lastOrder;
+  address public lastCreatedOrder;
   int32 public deliveredDistanceThreshold = 400; // in meters
 
   /// @dev Chainlink External API Calls
-  address private immutable oracle;
-  bytes32 private immutable jobId;
-  uint256 private immutable fee;
+  address public immutable oracle;
+  bytes32 public immutable jobId;
+  uint256 public immutable fee;
 
   /// @dev Multiple params returned in a single oracle response
   mapping(address => OrderState) public ordersState;
@@ -51,8 +51,9 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   event RequestFulfilled(bytes32 indexed requestId, int256 rawData);
 
   /// @dev State variables to store the last callback info
-  address private lastCallerAddress;
-  address private lastOrderAddress;
+  address public lastCallerAddress;
+  address public lastRequestedOrder;
+  int256 public lastRawData;
 
   /// @dev Modifiers
   modifier onlySender(address orderAddress) {
@@ -70,28 +71,23 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   }
 
   /**
-     * @notice Executes once when a contract is created to initialize state variables
-     *
-     * @param _oracle - address of the specific Chainlink node that a contract makes an API call from
-     * @param _jobId - specific job for :_oracle: to run; each job is unique and returns different types of data
-     * @param _fee - node operator price per API call / data request
-     * @param _link - LINK token address on the corresponding network
-     *
-     * Network: Sepolia
-     * Oracle: 0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD
-     * Job ID: ca98366cc7314957b8c012c72f05aeeb
-     * Fee: 0.1 LINK
-     */
-    constructor(address _oracle, bytes32 _jobId, uint256 _fee, address _link) ConfirmedOwner(msg.sender) {
-        if (_link == address(0)) {
-            setPublicChainlinkToken();
-        } else {
-            setChainlinkToken(_link);
-        }
-        oracle = _oracle;
-        jobId = _jobId;
-        fee = _fee;
+   * @notice Executes once when a contract is created to initialize state variables
+   *
+   * @param _oracle - address of the specific Chainlink node that a contract makes an API call from
+   * @param _jobId - specific job for :_oracle: to run; each job is unique and returns different types of data
+   * @param _fee - node operator price per API call / data request
+   * @param _link - LINK token address on the corresponding network
+   */
+  constructor(address _oracle, bytes32 _jobId, uint256 _fee, address _link) ConfirmedOwner(msg.sender) {
+    if (_link == address(0)) {
+      setPublicChainlinkToken();
+    } else {
+      setChainlinkToken(_link);
     }
+    oracle = _oracle;
+    jobId = _jobId;
+    fee = _fee;
+  }
 
   /**
    * @notice Create a new Order object
@@ -112,14 +108,14 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
     uint256 _expectedTimeOfArrival
   ) public returns (address orderAddress) {
     Order order = new Order(msg.sender, _receiver, _srcLat, _srcLng, _dstLat, _dstLng, _expectedTimeOfArrival);
-    lastOrder = address(order);
-    emit OrderCreated(lastOrder);
-    orders[lastOrder] = order;
-    orderAddresses.push(lastOrder);
-    ordersBySender[msg.sender].push(lastOrder);
-    ordersByReceiver[_receiver].push(lastOrder);
+    lastCreatedOrder = address(order);
+    emit OrderCreated(lastCreatedOrder);
+    orders[lastCreatedOrder] = order;
+    orderAddresses.push(lastCreatedOrder);
+    ordersBySender[msg.sender].push(lastCreatedOrder);
+    ordersByReceiver[_receiver].push(lastCreatedOrder);
     ordersCount++;
-    return lastOrder;
+    return lastCreatedOrder;
   }
 
   function getSenderOrders(address _sender) public view returns (address[] memory) {
@@ -143,10 +139,10 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
    * @dev It's called automatically by the IoT device automation
    * @param _orderAddress The address of the order
    */
-  function deliverOrder(address _orderAddress) public onlySender(_orderAddress) {
+  function deliverOrder(address _orderAddress) public onlySender(_orderAddress) returns (bytes32 requestId) {
     lastCallerAddress = msg.sender;
-    lastOrderAddress = _orderAddress;
-    requestCurrentLocation();
+    lastRequestedOrder = _orderAddress;
+    return requestCurrentLocation();
   }
 
   /**
@@ -170,10 +166,15 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
     Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
 
     // Set the URL to perform the GET request on
-    req.add("get", string(abi.encodePacked("https://ship-track.fly.dev/locations/last/", lastOrderAddress)));
+    string memory url = string(abi.encodePacked("https://ship-track.fly.dev/locations/last/", lastRequestedOrder));
+    console.log("URL: %s", url);
+    // req.add("get", url);
+    req.add("get", "https://ship-track.fly.dev/location/lastSerial");
 
     // Set the path to find the desired data in the API response:
-    req.add("path", "location");
+    // req.add("path", "location");
+    console.log("Path: %s", string(abi.encode(lastRequestedOrder)));
+    req.add("path", string(abi.encode(lastRequestedOrder)));
 
     // Adjust the API Response to an int256:
     req.addInt("times", 1); // Useful when the result is a floating point number
@@ -186,12 +187,13 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
    * @notice Callback function called by the oracle
    */
   function fulfill(bytes32 _requestId, int256 _rawData) public recordChainlinkFulfillment(_requestId) {
+    lastRawData = _rawData;
     emit RequestFulfilled(_requestId, _rawData);
     (int32 curLat, int32 curLng) = convertInt256ToLatLng(_rawData);
-    ordersState[lastOrder] = OrderState({curLat: curLat, curLng: curLng, timestamp: block.timestamp});
+    ordersState[lastRequestedOrder] = OrderState({curLat: curLat, curLng: curLng, timestamp: block.timestamp});
 
-    if (checkLatLngThreshold(lastOrderAddress)) {
-      emit OrderDelivered(lastOrderAddress);
+    if (checkLatLngThreshold(lastRequestedOrder)) {
+      emit OrderDelivered(lastRequestedOrder);
     }
   }
 

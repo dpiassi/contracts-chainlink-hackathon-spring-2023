@@ -49,12 +49,12 @@ async function deployApiConsumer(chainId) {
 
     console.log(`Shipping (APIConsumer) deployed to ${apiConsumer.address} on ${network.name}`)
 
-    if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
-        await run("verify:verify", {
-            address: apiConsumer.address,
-            constructorArguments: [oracleAddress, jobId, fee, linkTokenAddress],
-        })
-    }
+    // if (!developmentChains.includes(network.name) && process.env.ETHERSCAN_API_KEY) {
+    //     await run("verify:verify", {
+    //         address: apiConsumer.address,
+    //         constructorArguments: [oracleAddress, jobId, fee, linkTokenAddress],
+    //     })
+    // }
 
     // auto-funding
     const fundAmount = networkConfig[chainId]["fundAmount"]

@@ -69,7 +69,7 @@ module.exports = {
   },
   contractSizer: {
     runOnCompile: false,
-    only: ["ShippingFunctionsConsumer", "ShippingAutomatedFunctionsConsumer", "FunctionsBillingRegistry"],
+    only: ["Shipping", "ShippingFunctionsConsumer", "ShippingAutomatedFunctionsConsumer", "FunctionsBillingRegistry"],
   },
   paths: {
     sources: "./contracts",
