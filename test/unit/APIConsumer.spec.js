@@ -46,10 +46,10 @@ const CallbackEventName = "RequestFulfilled"
             const [deployer] = await ethers.getSigners()
             const transaction = await apiConsumer.createOrder(
                 deployer.getAddress(),
+                -22951804,
+                -43210760,
                 -23464796,
                 -46915496,
-                -23466680,
-                -46915960,
                 1688091844
             )
             const transactionReceipt = await transaction.wait(1)
@@ -64,7 +64,7 @@ const CallbackEventName = "RequestFulfilled"
             describe("success", async function () {
                 it("Should successfully create an order", async function () {
                     const { newOrderHash } = await loadFixture(deployAPIConsumerAndCreateOrderFixture)
-                    console.log(`newOrderHash: ${newOrderHash}`)
+                    // console.log(`newOrderHash: ${newOrderHash}`)
                     expect(newOrderHash).to.not.be.null
                 })
             })
@@ -84,7 +84,7 @@ const CallbackEventName = "RequestFulfilled"
             describe("success", async function () {
                 it("Should successfully request last location of specified order as an attempt to mark it as delivered", async function () {
                     const { apiConsumer, newOrderHash } = await loadFixture(deployAPIConsumerAndCreateOrderFixture)
-                    console.log(`newOrderHash: ${newOrderHash}`)
+                    // console.log(`newOrderHash: ${newOrderHash}`)
                     const transaction = await apiConsumer.deliverOrder(newOrderHash)
                     const transactionReceipt = await transaction.wait(1)
                     const requestId = transactionReceipt.events[0].topics[1]
@@ -110,45 +110,45 @@ const CallbackEventName = "RequestFulfilled"
                     const transaction = await apiConsumer.deliverOrder(newOrderHash)
                     const transactionReceipt = await transaction.wait(1)
                     const requestId = transactionReceipt.events[0].topics[1]
-                    const callbackValue = 100788622832613250n
+                    const callbackValue = 98577247880991224n
+                    // console.log(`callbackValue: ${callbackValue}`)
                     await mockOracle.fulfillOracleRequest(requestId, numToBytes32(callbackValue))
-                    await new Promise(resolve => setTimeout(resolve, 30000))
                     const rawData = await apiConsumer.lastSerializedLocation()
-                    console.log(`rawData: ${rawData}`)
-                    console.log(`callbackValue: ${callbackValue}`)
+                    // console.log(`rawData: ${rawData}`)
+                    // console.log(`callbackValue: ${callbackValue}`)
                     assert.equal(rawData.toString(), callbackValue.toString())
                 })
 
-                // it("Our event should successfully fire event on callback", async function () {
-                //     const { apiConsumer, mockOracle, newOrderHash } = await loadFixture(
-                //         deployAPIConsumerAndCreateOrderFixture
-                //     )
-                //     const callbackValue = 100788622832613250n
-                //     // we setup a promise so we can wait for our callback from the `once` function
-                //     await new Promise(async (resolve, reject) => {
-                //         // setup listener for our event
-                //         apiConsumer.once(CallbackEventName, async () => {
-                //             console.log(`${CallbackEventName} event fired!`)
-                //             const rawData = await apiConsumer.lastSerializedLocation()
-                //             // assert throws an error if it fails, so we need to wrap
-                //             // it in a try/catch so that the promise returns event
-                //             // if it fails.
-                //             try {
-                //                 assert.equal(rawData.toString(), callbackValue.toString())
-                //                 resolve()
-                //             } catch (e) {
-                //                 reject(e)
-                //             }
-                //         })
-                //         const transaction = await apiConsumer.deliverOrder(newOrderHash)
-                //         const transactionReceipt = await transaction.wait(1)
-                //         const requestId = transactionReceipt.events[0].topics[1]
-                //         await mockOracle.fulfillOracleRequest(
-                //             requestId,
-                //             numToBytes32(callbackValue)
-                //         )
-                //     })
-                // })
+                it("Our event should successfully fire event on callback", async function () {
+                    const { apiConsumer, mockOracle, newOrderHash } = await loadFixture(
+                        deployAPIConsumerAndCreateOrderFixture
+                    )
+                    const callbackValue = 98577247880991224n
+                    // we setup a promise so we can wait for our callback from the `once` function
+                    await new Promise(async (resolve, reject) => {
+                        // setup listener for our event
+                        apiConsumer.once(CallbackEventName, async () => {
+                            // console.log(`${CallbackEventName} event fired!`)
+                            const rawData = await apiConsumer.lastSerializedLocation()
+                            // assert throws an error if it fails, so we need to wrap
+                            // it in a try/catch so that the promise returns event
+                            // if it fails.
+                            try {
+                                assert.equal(rawData.toString(), callbackValue.toString())
+                                resolve()
+                            } catch (e) {
+                                reject(e)
+                            }
+                        })
+                        const transaction = await apiConsumer.deliverOrder(newOrderHash)
+                        const transactionReceipt = await transaction.wait(1)
+                        const requestId = transactionReceipt.events[0].topics[1]
+                        await mockOracle.fulfillOracleRequest(
+                            requestId,
+                            numToBytes32(callbackValue)
+                        )
+                    })
+                })
             })
         })
     })

@@ -289,24 +289,16 @@ contract ShippingAutomatedFunctionsConsumer is FunctionsClient, ConfirmedOwner, 
     int32 _curLng = ordersState[_orderAddress].curLng;
 
     // Verify latitude:
-    int32 latDiff = _curLat - dstLat;
-    if (latDiff < 0) {
-      latDiff = -latDiff;
-    }
-    int32 latDistance = (latDiff * EARTH_CIRCUMFERENCE) / LATITUDE_RANGE;
-    if (latDistance > deliveredDistanceThreshold) {
-      return false;
-    }
+    int latDiff = _curLat - dstLat;
+    if (latDiff < 0) latDiff = -latDiff;
+    int latDistance = int(latDiff * EARTH_CIRCUMFERENCE) / LATITUDE_RANGE;
+    if (latDistance > deliveredDistanceThreshold) return false;
 
     // Verify longitude:
-    int32 lngDiff = _curLng - dstLng;
-    if (lngDiff < 0) {
-      lngDiff = -lngDiff;
-    }
-    int32 lngDistance = (lngDiff * EARTH_CIRCUMFERENCE) / LONGITUDE_RANGE;
-    if (lngDistance > deliveredDistanceThreshold) {
-      return false;
-    }
+    int lngDiff = _curLng - dstLng;
+    if (lngDiff < 0) lngDiff = -lngDiff;
+    int lngDistance = int(lngDiff * EARTH_CIRCUMFERENCE) / LONGITUDE_RANGE;
+    if (lngDistance > deliveredDistanceThreshold) return false;
 
     order.deliver();
     return true;

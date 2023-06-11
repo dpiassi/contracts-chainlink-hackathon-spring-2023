@@ -202,21 +202,18 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
    * @notice Callback function called by the oracle
    */
   function fulfill(bytes32 _requestId, int256 _rawData) public recordChainlinkFulfillment(_requestId) {
-    console.log("fulfill called");
-    console.logInt(_rawData);
     lastSerializedLocation = _rawData;
-    console.logInt(lastSerializedLocation);
     emit RequestFulfilled(_requestId, _rawData);
 
     // BUG the error is here:
-    // (int32 curLat, int32 curLng) = convertInt256ToLatLng(_rawData);
-    // ordersState[lastRequestedOrder] = OrderState({curLat: curLat, curLng: curLng, timestamp: block.timestamp});
-    // console.logInt(curLat);
-    // console.logInt(curLng);
+    (int32 curLat, int32 curLng) = convertInt256ToLatLng(_rawData);
+    ordersState[lastRequestedOrder] = OrderState({curLat: curLat, curLng: curLng, timestamp: block.timestamp});
+    console.logInt(curLat);
+    console.logInt(curLng);
 
-    // if (checkLatLngThreshold(lastRequestedOrder)) {
-    //   emit OrderDelivered(lastRequestedOrder);
-    // }
+    if (checkLatLngThreshold(lastRequestedOrder)) {
+      emit OrderDelivered(lastRequestedOrder);
+    }
   }
 
   /**
@@ -245,24 +242,16 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
     int32 _curLng = ordersState[_orderAddress].curLng;
 
     // Verify latitude:
-    int32 latDiff = _curLat - dstLat;
-    if (latDiff < 0) {
-      latDiff = -latDiff;
-    }
-    int32 latDistance = (latDiff * EARTH_CIRCUMFERENCE) / LATITUDE_RANGE;
-    if (latDistance > deliveredDistanceThreshold) {
-      return false;
-    }
+    int latDiff = _curLat - dstLat;
+    if (latDiff < 0) latDiff = -latDiff;
+    int latDistance = int(latDiff * EARTH_CIRCUMFERENCE) / LATITUDE_RANGE;
+    if (latDistance > deliveredDistanceThreshold) return false;
 
     // Verify longitude:
-    int32 lngDiff = _curLng - dstLng;
-    if (lngDiff < 0) {
-      lngDiff = -lngDiff;
-    }
-    int32 lngDistance = (lngDiff * EARTH_CIRCUMFERENCE) / LONGITUDE_RANGE;
-    if (lngDistance > deliveredDistanceThreshold) {
-      return false;
-    }
+    int lngDiff = _curLng - dstLng;
+    if (lngDiff < 0) lngDiff = -lngDiff;
+    int lngDistance = int(lngDiff * EARTH_CIRCUMFERENCE) / LONGITUDE_RANGE;
+    if (lngDistance > deliveredDistanceThreshold) return false;
 
     order.deliver();
     return true;

@@ -185,8 +185,11 @@ contract ShippingFunctionsConsumer is FunctionsClient, ConfirmedOwner {
     require(lastOrder != address(0), "No orders created yet");
 
     string[] memory requestArgs;
-    requestArgs = new string[](1);
-    requestArgs[0] = Strings.toHexString(uint160(lastOrder), 20);
+    requestArgs = new string[](1 + args.length);
+    for (uint256 i = 0; i < args.length; i++) {
+      requestArgs[i] = args[i];
+    }
+    requestArgs[args.length] = Strings.toHexString(uint160(lastOrder), 20);
     req.addArgs(requestArgs);
 
     bytes32 assignedReqID = sendRequest(req, subscriptionId, gasLimit);
@@ -206,6 +209,26 @@ contract ShippingFunctionsConsumer is FunctionsClient, ConfirmedOwner {
     latestResponse = response;
     latestError = err;
     emit OCRResponse(requestId, response, err);
+
+    // Check if error is empty:
+    if (err.length == 0) {
+      console.log("Response: ", string(response));
+      console.log("Response length: ", response.length);
+      console.log("Response to string: ", string(response));
+      console.logInt(abi.decode(response, (int256)));
+
+      // Convert response to int256:
+      int256 _latLng = abi.decode(response, (int256));
+      (int32 _curLat, int32 _curLng) = convertInt256ToLatLng(_latLng);
+      console.logInt(_curLat);
+      console.logInt(_curLng);
+      ordersState[lastOrder].curLat = _curLat;
+      ordersState[lastOrder].curLng = _curLng;
+      ordersState[lastOrder].timestamp = block.timestamp;
+      tryDeliverOrder(lastOrder);
+    } else {
+      console.log("Error: ", string(err));
+    }
   }
 
   /**
@@ -246,24 +269,16 @@ contract ShippingFunctionsConsumer is FunctionsClient, ConfirmedOwner {
     int32 _curLng = ordersState[_orderAddress].curLng;
 
     // Verify latitude:
-    int32 latDiff = _curLat - dstLat;
-    if (latDiff < 0) {
-      latDiff = -latDiff;
-    }
-    int32 latDistance = (latDiff * EARTH_CIRCUMFERENCE) / LATITUDE_RANGE;
-    if (latDistance > deliveredDistanceThreshold) {
-      return false;
-    }
+    int latDiff = _curLat - dstLat;
+    if (latDiff < 0) latDiff = -latDiff;
+    int latDistance = int(latDiff * EARTH_CIRCUMFERENCE) / LATITUDE_RANGE;
+    if (latDistance > deliveredDistanceThreshold) return false;
 
     // Verify longitude:
-    int32 lngDiff = _curLng - dstLng;
-    if (lngDiff < 0) {
-      lngDiff = -lngDiff;
-    }
-    int32 lngDistance = (lngDiff * EARTH_CIRCUMFERENCE) / LONGITUDE_RANGE;
-    if (lngDistance > deliveredDistanceThreshold) {
-      return false;
-    }
+    int lngDiff = _curLng - dstLng;
+    if (lngDiff < 0) lngDiff = -lngDiff;
+    int lngDistance = int(lngDiff * EARTH_CIRCUMFERENCE) / LONGITUDE_RANGE;
+    if (lngDistance > deliveredDistanceThreshold) return false;
 
     order.deliver();
     return true;

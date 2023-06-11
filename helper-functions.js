@@ -80,8 +80,19 @@ const numToBytes32 = (num) => {
     return addHexPrefix(strippedNum.padStart(32 * 2, "0"))
 }
 
+/**
+ * Converts any number, BigNumber, hex string or Arrayish to a hex string.
+ *
+ * @param args Value to convert to a hex string
+ */
+// https://github.com/smartcontractkit/chainlink/blob/dbabde12def11a803d995e482e5fc4287d9cfce4/contracts/test/test-helpers/helpers.ts#L161
+const toHex = (...args) => {
+    return ethers.utils.hexlify(...args)
+}
+
 module.exports = {
     autoFundCheck,
     verify,
     numToBytes32,
+    toHex,
 }
