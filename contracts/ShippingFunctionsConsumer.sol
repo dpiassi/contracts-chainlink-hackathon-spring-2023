@@ -11,6 +11,9 @@ import {Functions, FunctionsClient} from "./dev/functions/FunctionsClient.sol";
 // Import chainlink/contracts framework dependencies
 import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/ConfirmedOwner.sol";
 
+// Import openzeppelin/contracts utilities
+import "@openzeppelin/contracts/utils/Strings.sol";
+
 // Import local dependencies
 import "./Order.sol";
 
@@ -167,18 +170,23 @@ contract ShippingFunctionsConsumer is FunctionsClient, ConfirmedOwner {
     if (secrets.length > 0) req.addRemoteSecrets(secrets);
     // if (args.length > 0) req.addArgs(args);
 
-    string[] memory requestArgs;
-    uint256 requestArgsCount = 0;
+    // string[] memory requestArgs;
+    // uint256 requestArgsCount = 0;
 
     // Iterate over all orders:
-    for (uint256 i = 0; i < ordersCount; i++) {
-      address orderAddress = orderAddresses[i];
-      Order order = orders[orderAddress];
-      if (order.delivered()) continue;
-      (int32 dstLat, int32 dstLng) = order.destinationLocation();
-      requestArgs[requestArgsCount] = string(abi.encodePacked('"', orderAddress, '":[', dstLat, ",", dstLng, "],"));
-    }
+    // for (uint256 i = 0; i < ordersCount; i++) {
+    //   address orderAddress = orderAddresses[i];
+    //   Order order = orders[orderAddress];
+    //   if (order.delivered()) continue;
+    //   requestArgs[requestArgsCount] = Strings.toHexString(uint160(orderAddress), 20);
+    //   requestArgsCount++;
+    // }
 
+    require(lastOrder != address(0), "No orders created yet");
+
+    string[] memory requestArgs;
+    requestArgs = new string[](1);
+    requestArgs[0] = Strings.toHexString(uint160(lastOrder), 20);
     req.addArgs(requestArgs);
 
     bytes32 assignedReqID = sendRequest(req, subscriptionId, gasLimit);

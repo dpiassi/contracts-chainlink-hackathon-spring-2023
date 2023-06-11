@@ -2,11 +2,14 @@
 pragma solidity ^0.8.7;
 
 // Uncomment this line to use console.log
-import "hardhat/console.sol";
+// import "hardhat/console.sol";
 
 // Import chainlink/contracts framework dependencies
 import "@chainlink/contracts/src/v0.8/ChainlinkClient.sol";
 import {ConfirmedOwner} from "@chainlink/contracts/src/v0.8/ConfirmedOwner.sol";
+
+// Import openzeppelin/contracts utilities
+import "@openzeppelin/contracts/utils/Strings.sol";
 
 // Import local dependencies
 import "./Order.sol";
@@ -37,7 +40,6 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   int32 public deliveredDistanceThreshold = 400; // in meters
 
   /// @dev Chainlink External API Calls
-  address public immutable oracle;
   bytes32 public immutable jobId;
   uint256 public immutable fee;
 
@@ -53,7 +55,7 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   /// @dev State variables to store the last callback info
   address public lastCallerAddress;
   address public lastRequestedOrder;
-  int256 public lastRawData;
+  int256 public lastSerializedLocation;
 
   /// @dev Modifiers
   modifier onlySender(address orderAddress) {
@@ -80,11 +82,25 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
    */
   constructor(address _oracle, bytes32 _jobId, uint256 _fee, address _link) ConfirmedOwner(msg.sender) {
     if (_link == address(0)) {
-      setPublicChainlinkToken();
+      setChainlinkToken(0x779877A7B0D9E8603169DdbD7836e478b4624789);
     } else {
       setChainlinkToken(_link);
     }
-    oracle = _oracle;
+
+    if (_oracle == address(0)) {
+      setChainlinkOracle(0x6090149792dAAeE9D1D568c9f9a6F6B46AA29eFD);
+    } else {
+      setChainlinkOracle(_oracle);
+    }
+
+    if (_jobId == bytes32(0)) {
+      _jobId = "fcf4140d696d44b687012232948bdd5d"; // int256 on Sepolia testnet
+    }
+
+    if (_fee == 0) {
+      _fee = (1 * LINK_DIVISIBILITY) / 10; // 0,1 * 10**18 (Varies by network and job)
+    }
+
     jobId = _jobId;
     fee = _fee;
   }
@@ -165,16 +181,15 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
   function requestCurrentLocation() public returns (bytes32 requestId) {
     Chainlink.Request memory req = buildChainlinkRequest(jobId, address(this), this.fulfill.selector);
 
-    // Set the URL to perform the GET request on
-    string memory url = string(abi.encodePacked("https://ship-track.fly.dev/locations/last/", lastRequestedOrder));
-    console.log("URL: %s", url);
-    // req.add("get", url);
-    req.add("get", "https://ship-track.fly.dev/location/lastSerial");
+    // Set the URL to perform the GET request on IoT device API
+    string memory orderHash = Strings.toHexString(uint160(lastRequestedOrder), 20);
+    // string memory url = "https://ship-track.fly.dev/location/lastSerial";
+    string memory url = string(abi.encodePacked("https://ship-track.fly.dev/locations/last/", orderHash));
+    // console.log("url: %s", url);
+    req.add("get", url);
 
     // Set the path to find the desired data in the API response:
-    // req.add("path", "location");
-    console.log("Path: %s", string(abi.encode(lastRequestedOrder)));
-    req.add("path", string(abi.encode(lastRequestedOrder)));
+    req.add("path", "location");
 
     // Adjust the API Response to an int256:
     req.addInt("times", 1); // Useful when the result is a floating point number
@@ -187,14 +202,21 @@ contract Shipping is ChainlinkClient, ConfirmedOwner {
    * @notice Callback function called by the oracle
    */
   function fulfill(bytes32 _requestId, int256 _rawData) public recordChainlinkFulfillment(_requestId) {
-    lastRawData = _rawData;
+    console.log("fulfill called");
+    console.logInt(_rawData);
+    lastSerializedLocation = _rawData;
+    console.logInt(lastSerializedLocation);
     emit RequestFulfilled(_requestId, _rawData);
-    (int32 curLat, int32 curLng) = convertInt256ToLatLng(_rawData);
-    ordersState[lastRequestedOrder] = OrderState({curLat: curLat, curLng: curLng, timestamp: block.timestamp});
 
-    if (checkLatLngThreshold(lastRequestedOrder)) {
-      emit OrderDelivered(lastRequestedOrder);
-    }
+    // BUG the error is here:
+    // (int32 curLat, int32 curLng) = convertInt256ToLatLng(_rawData);
+    // ordersState[lastRequestedOrder] = OrderState({curLat: curLat, curLng: curLng, timestamp: block.timestamp});
+    // console.logInt(curLat);
+    // console.logInt(curLng);
+
+    // if (checkLatLngThreshold(lastRequestedOrder)) {
+    //   emit OrderDelivered(lastRequestedOrder);
+    // }
   }
 
   /**

@@ -32,9 +32,9 @@ const requestConfig = {
   // string containing the source code to be executed
   source: fs.readFileSync(path.resolve(__dirname, "source.js")).toString(),
   // args can be accessed within the source code with `args[index]` (ie: args[0])
-  // args: ["ETH", "USD"],
+  args: ["0xdb5edf86213b366ec6b7a0caf9fc78494c7ee135"],
   // expected type of the returned value
-  expectedReturnType: ReturnType.uint256,
+  expectedReturnType: ReturnType.int256,
 }
 
 module.exports = requestConfig

@@ -42,6 +42,12 @@ async function deployApiConsumer(chainId) {
     const apiConsumerFactory = await ethers.getContractFactory("Shipping")
     const apiConsumer = await apiConsumerFactory.deploy(oracleAddress, jobId, fee, linkTokenAddress)
 
+    console.log(`Deploying contract with parameters:`)
+    console.log(`- oracleAddress: ${oracleAddress}`)
+    console.log(`- jobId: ${jobId}`)
+    console.log(`- fee: ${fee}`)
+    console.log(`- linkTokenAddress: ${linkTokenAddress}`)
+
     const waitBlockConfirmations = developmentChains.includes(network.name)
         ? 1
         : VERIFICATION_BLOCK_CONFIRMATIONS
