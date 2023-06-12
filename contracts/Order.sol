@@ -17,11 +17,11 @@ contract Order {
   }
 
   /// @dev State variables
-  address public sender;
-  address public receiver;
+  address public immutable sender;
+  address public immutable receiver;
   LatLng public sourceLocation;
   LatLng public destinationLocation;
-  uint256 public expectedTimeOfArrival;
+  uint256 public immutable expectedTimeOfArrival;
   bool public delivered;
   bool public confirmed;
 
